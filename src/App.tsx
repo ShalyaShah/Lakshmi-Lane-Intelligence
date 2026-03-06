@@ -206,6 +206,11 @@ Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
                         <span>Price: ₹{a.raw_price}</span>
                         <span>Weight: {a.raw_weight}kg</span>
                       </div>
+                      {a.anomaly_reason && (
+                        <div className="mt-1 text-xs text-amber-800 font-medium bg-amber-100 px-2 py-1 rounded inline-block">
+                          {a.anomaly_reason}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -217,6 +222,62 @@ Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
             </div>
           </section>
         </div>
+
+        {/* Optimized Lanes Table */}
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-semibold">Lane Optimization Intelligence</h2>
+            <p className="text-sm text-slate-500 mt-1">AI-recommended carriers and pricing based on historical data.</p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 text-slate-500 uppercase text-xs font-semibold">
+                <tr>
+                  <th className="px-6 py-3">Lane</th>
+                  <th className="px-6 py-3">Shipments</th>
+                  <th className="px-6 py-3">Avg Price</th>
+                  <th className="px-6 py-3">Best Carrier</th>
+                  <th className="px-6 py-3">Optimization Score</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {lanes.length > 0 ? (
+                  lanes.map((l, i) => (
+                    <tr key={i} className="hover:bg-slate-50">
+                      <td className="px-6 py-4 font-medium text-slate-900">
+                        {l.lane_id}
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {l.shipment_count}
+                      </td>
+                      <td className="px-6 py-4 text-slate-900 font-medium">
+                        ₹{Math.round(l.avg_price).toLocaleString()}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-indigo-600 font-medium">{l.best_carrier}</div>
+                        <div className="text-xs text-slate-500">Best rate: ₹{Math.round(l.best_price).toLocaleString()}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-full bg-slate-200 rounded-full h-2.5">
+                            <div className={`h-2.5 rounded-full ${l.optimization_score > 80 ? 'bg-emerald-500' : l.optimization_score > 50 ? 'bg-amber-500' : 'bg-red-500'}`} style={{ width: `${l.optimization_score}%` }}></div>
+                          </div>
+                          <span className="text-xs font-medium text-slate-600">{l.optimization_score}/100</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
+                      No lane data available.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
         {/* Data Table */}
         <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
