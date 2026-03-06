@@ -1,11 +1,13 @@
 import { GoogleGenAI } from '@google/genai';
 import * as fuzzball from 'fuzzball';
+import { sql } from "drizzle-orm";
 
 export async function normalizeData(db: any, uniqueCities: Set<string>, uniqueTrucks: Set<string>) {
   const cityList = Array.from(uniqueCities).join(', ');
   const truckList = Array.from(uniqueTrucks).join(', ');
 
-  const standardCities = db.prepare("SELECT city_name FROM standard_cities").all().map((c: any) => c.city_name);
+  const standardCitiesResult = await db.execute(sql`SELECT city_name FROM standard_cities`);
+  const standardCities = standardCitiesResult.rows.map((c: any) => c.city_name);
 
   let cityMap: Record<string, string> = {};
   let truckMap: Record<string, string> = {};
@@ -36,7 +38,7 @@ export async function normalizeData(db: any, uniqueCities: Set<string>, uniqueTr
       const jsonRes = JSON.parse(response.text || '{}');
       cityMap = jsonRes.cities || {};
       truckMap = jsonRes.trucks || {};
-      
+
       // Apply fuzzy matching for any cities that Gemini missed or didn't normalize well
       Array.from(uniqueCities).forEach(c => {
         if (!cityMap[c]) {
@@ -50,13 +52,13 @@ export async function normalizeData(db: any, uniqueCities: Set<string>, uniqueTr
           }
         }
       });
-      
+
       Array.from(uniqueTrucks).forEach(t => {
         if (!truckMap[t]) {
           truckMap[t] = t.trim().toUpperCase().replace(/\s+/g, '');
         }
       });
-      
+
     } catch (e) {
       console.error("Gemini API error, falling back to basic normalization", e);
       fallbackNormalization(uniqueCities, uniqueTrucks, cityMap, truckMap, standardCities);
@@ -70,20 +72,20 @@ export async function normalizeData(db: any, uniqueCities: Set<string>, uniqueTr
 
 function fuzzyMatchCity(rawCity: string, standardCities: string[]): string {
   const normalized = rawCity.trim().toUpperCase();
-  
+
   // Handle common aliases before fuzzy matching
   if (normalized === 'BOMBAY') return 'MUMBAI';
   if (normalized === 'MADRAS') return 'CHENNAI';
   if (normalized === 'CALCUTTA') return 'KOLKATA';
   if (normalized === 'GURGAON') return 'GURUGRAM';
-  
+
   const match = fuzzball.extract(normalized, standardCities, { scorer: fuzzball.ratio, limit: 1 })[0];
-  
+
   // If similarity score is > 75, consider it a match
   if (match && match[1] > 75) {
     return match[0];
   }
-  
+
   return normalized;
 }
 
