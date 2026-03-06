@@ -2,15 +2,11 @@ services:
   - type: web
     name: lakshmi-lane-intelligence
     env: docker
-    plan: starter
+    plan: free
     region: oregon
-    disk:
-      name: sqlite-data
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: DB_PATH
-        value: /data/logistics.db
+        value: /tmp/logistics.db
       - key: PORT
         value: 3000
       - key: GEMINI_API_KEY
