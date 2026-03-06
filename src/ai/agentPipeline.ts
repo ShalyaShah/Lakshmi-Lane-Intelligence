@@ -10,6 +10,17 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
     return { message: 'No raw shipments to process' };
   }
 
+  // Fetch historical prices per lane for anomaly detection
+  const historicalPrices = db.prepare(`
+    SELECT lane_id, raw_price FROM shipments WHERE status = 'processed' AND is_anomaly = 0
+  `).all();
+
+  const lanePrices: Record<string, number[]> = {};
+  historicalPrices.forEach((h: any) => {
+    if (!lanePrices[h.lane_id]) lanePrices[h.lane_id] = [];
+    lanePrices[h.lane_id].push(h.raw_price);
+  });
+
   // Agent 2: Normalization Agent
   const uniqueCities = new Set<string>();
   const uniqueTrucks = new Set<string>();
@@ -33,6 +44,9 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
   const processedShipments: any[] = [];
   let duplicatesRemoved = 0;
   let anomaliesDetected = 0;
+  
+  let aiCorrectedStrings = 0;
+  let totalStrings = 0;
 
   const processTransaction = db.transaction((shipments: any[]) => {
     for (let i = 0; i < shipments.length; i++) {
@@ -42,13 +56,34 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
       const cleanDest = cityMap[s.raw_destination] || s.raw_destination.trim().toUpperCase();
       const cleanTruck = truckMap[s.raw_truck_type] || s.raw_truck_type.trim().toUpperCase();
       
+      if (cleanOrigin !== s.raw_origin) aiCorrectedStrings++;
+      if (cleanDest !== s.raw_destination) aiCorrectedStrings++;
+      if (cleanTruck !== s.raw_truck_type) aiCorrectedStrings++;
+      totalStrings += 3;
+      
       const laneId = buildLaneId(cleanOrigin, cleanDest);
 
       const isDuplicate = isDuplicateShipment(s, processedShipments, laneId, cleanTruck) ? 1 : 0;
       if (isDuplicate) duplicatesRemoved++;
 
-      const { isAnomaly, reason } = detectAnomaly(s);
-      if (isAnomaly) anomaliesDetected++;
+      // Calculate lane stats
+      let laneStats = undefined;
+      const prices = lanePrices[laneId] || [];
+      if (prices.length >= 3) {
+        const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const variance = prices.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / prices.length;
+        const stdDev = Math.sqrt(variance);
+        laneStats = { mean, stdDev };
+      }
+
+      const { isAnomaly, reason } = detectAnomaly(s, laneStats);
+      if (isAnomaly) {
+        anomaliesDetected++;
+      } else if (!isDuplicate) {
+        // Add to lane prices for future shipments in this batch
+        if (!lanePrices[laneId]) lanePrices[laneId] = [];
+        lanePrices[laneId].push(s.raw_price);
+      }
 
       updateStmt.run(cleanOrigin, cleanDest, cleanTruck, isDuplicate, isAnomaly, reason, laneId, s.id);
       
@@ -68,12 +103,13 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
   processTransaction(rawShipments);
 
   const processingTime = Date.now() - startTime;
+  const normalizationAccuracy = totalStrings > 0 ? Math.round((aiCorrectedStrings / totalStrings) * 1000) / 10 : 0;
 
   // Update metrics
   db.prepare(`
     INSERT INTO metrics (total_processed, duplicates_removed, anomalies_detected, normalization_accuracy, processing_time_ms)
     VALUES (?, ?, ?, ?, ?)
-  `).run(rawShipments.length, duplicatesRemoved, anomaliesDetected, 98.5, processingTime);
+  `).run(rawShipments.length, duplicatesRemoved, anomaliesDetected, normalizationAccuracy, processingTime);
 
   return { 
     message: 'Processing complete', 
