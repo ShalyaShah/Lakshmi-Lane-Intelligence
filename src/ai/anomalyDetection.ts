@@ -1,4 +1,4 @@
-export function detectAnomaly(shipment: any, laneStats?: { mean: number, stdDev: number }, cleanOrigin?: string, cleanDest?: string) {
+export function detectAnomaly(shipment: any, laneStats?: { mean: number, stdDev: number }, cleanOrigin?: string, cleanDest?: string, ifScore?: number) {
   let isAnomaly = 0;
   let reason = '';
   
@@ -14,6 +14,9 @@ export function detectAnomaly(shipment: any, laneStats?: { mean: number, stdDev:
   } else if (shipment.raw_price > 1000000) {
     isAnomaly = 1;
     reason = 'Price unusually high';
+  } else if (ifScore && ifScore > 0.6) {
+    isAnomaly = 1;
+    reason = `Multi-dimensional anomaly (IF Score: ${ifScore.toFixed(2)})`;
   } else if (laneStats && laneStats.stdDev > 0) {
     const zScore = Math.abs(shipment.raw_price - laneStats.mean) / laneStats.stdDev;
     if (zScore > 2) {

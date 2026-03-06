@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Activity, AlertTriangle, CheckCircle, Database, Truck, Map, RefreshCw, Download, Settings, X, Lock } from 'lucide-react';
+import { Upload, Activity, AlertTriangle, CheckCircle, Database, Truck, Map as MapIcon, RefreshCw, Download, Settings, X, Lock, BarChart2, Globe } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
+import LaneMap from './components/LaneMap';
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -18,6 +19,7 @@ export default function App() {
   const [showCityModal, setShowCityModal] = useState(false);
   const [cities, setCities] = useState<string[]>([]);
   const [newCity, setNewCity] = useState('');
+  const [viewMode, setViewMode] = useState<'chart' | 'map'>('map');
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -299,24 +301,44 @@ Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Chart Area */}
           <section className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-            <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
-              <Map className="w-5 h-5 text-slate-400" />
-              Top Logistics Lanes by Volume
-            </h2>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <MapIcon className="w-5 h-5 text-slate-400" />
+                Top Logistics Lanes by Volume
+              </h2>
+              <div className="flex bg-slate-100 p-1 rounded-lg">
+                <button
+                  onClick={() => setViewMode('map')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-colors ${viewMode === 'map' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <Globe className="w-4 h-4" /> Map
+                </button>
+                <button
+                  onClick={() => setViewMode('chart')}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-md flex items-center gap-2 transition-colors ${viewMode === 'chart' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <BarChart2 className="w-4 h-4" /> Chart
+                </button>
+              </div>
+            </div>
             <div className="h-80">
               {lanes.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={lanes} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
-                    <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis dataKey="lane_id" type="category" width={120} fontSize={11} tickLine={false} axisLine={false} />
-                    <Tooltip 
-                      cursor={{fill: '#f8fafc'}}
-                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    />
-                    <Bar dataKey="shipment_count" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={24} name="Shipments" />
-                  </BarChart>
-                </ResponsiveContainer>
+                viewMode === 'chart' ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={lanes} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#e2e8f0" />
+                      <XAxis type="number" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis dataKey="lane_id" type="category" width={120} fontSize={11} tickLine={false} axisLine={false} />
+                      <Tooltip 
+                        cursor={{fill: '#f8fafc'}}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      />
+                      <Bar dataKey="shipment_count" fill="#4f46e5" radius={[0, 4, 4, 0]} barSize={24} name="Shipments" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <LaneMap lanes={lanes} />
+                )
               ) : (
                 <div className="h-full flex items-center justify-center text-slate-400 text-sm">
                   Upload data to generate lane analytics

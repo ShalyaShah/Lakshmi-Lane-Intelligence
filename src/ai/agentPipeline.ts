@@ -2,6 +2,7 @@ import { normalizeData } from './dataCleaner';
 import { isDuplicateShipment } from './deduplicate';
 import { detectAnomaly } from './anomalyDetection';
 import { buildLaneId } from './laneBuilder';
+import { IsolationForest } from 'isolation-forest';
 
 export async function runAgentPipeline(db: any, rawShipments: any[]) {
   const startTime = Date.now();
@@ -12,7 +13,7 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
 
   // Fetch historical prices per lane for anomaly detection
   const historicalPrices = db.prepare(`
-    SELECT lane_id, raw_price FROM shipments WHERE status = 'processed' AND is_anomaly = 0
+    SELECT lane_id, raw_price, raw_weight, clean_truck_type FROM shipments WHERE status = 'processed' AND is_anomaly = 0
   `).all();
 
   const lanePrices: Record<string, number[]> = {};
@@ -32,6 +33,51 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
   });
 
   const { cityMap, truckMap } = await normalizeData(db, uniqueCities, uniqueTrucks);
+
+  // Prepare data for Isolation Forest
+  const forestData: any[] = [];
+  const laneMap = new Map<string, number>();
+  const truckTypeMap = new Map<string, number>();
+  let laneCounter = 0;
+  let truckCounter = 0;
+
+  historicalPrices.forEach((h: any) => {
+    if (!laneMap.has(h.lane_id)) laneMap.set(h.lane_id, laneCounter++);
+    if (!truckTypeMap.has(h.clean_truck_type)) truckTypeMap.set(h.clean_truck_type, truckCounter++);
+    
+    forestData.push({
+      price: h.raw_price,
+      weight: h.raw_weight,
+      lane: laneMap.get(h.lane_id),
+      truck: truckTypeMap.get(h.clean_truck_type)
+    });
+  });
+
+  const currentBatchFeatures: any[] = [];
+  rawShipments.forEach(s => {
+    const cleanOrigin = cityMap[s.raw_origin] || s.raw_origin.trim().toUpperCase();
+    const cleanDest = cityMap[s.raw_destination] || s.raw_destination.trim().toUpperCase();
+    const cleanTruck = truckMap[s.raw_truck_type] || s.raw_truck_type.trim().toUpperCase();
+    const laneId = buildLaneId(cleanOrigin, cleanDest);
+
+    if (!laneMap.has(laneId)) laneMap.set(laneId, laneCounter++);
+    if (!truckTypeMap.has(cleanTruck)) truckTypeMap.set(cleanTruck, truckCounter++);
+
+    const feature = {
+      price: s.raw_price,
+      weight: s.raw_weight,
+      lane: laneMap.get(laneId),
+      truck: truckTypeMap.get(cleanTruck)
+    };
+    forestData.push(feature);
+    currentBatchFeatures.push(feature);
+  });
+
+  let forest: any = null;
+  if (forestData.length > 5) {
+    forest = new IsolationForest();
+    forest.fit(forestData);
+  }
 
   // Agent 3, 4, 5: Deduplication, Lane Builder, Anomaly Detection
   const updateStmt = db.prepare(`
@@ -76,7 +122,12 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
         laneStats = { mean, stdDev };
       }
 
-      const { isAnomaly, reason } = detectAnomaly(s, laneStats, cleanOrigin, cleanDest);
+      let ifScore = 0;
+      if (forest) {
+        ifScore = forest.predict([currentBatchFeatures[i]])[0];
+      }
+
+      const { isAnomaly, reason } = detectAnomaly(s, laneStats, cleanOrigin, cleanDest, ifScore);
       if (isAnomaly) {
         anomaliesDetected++;
       } else if (!isDuplicate) {
