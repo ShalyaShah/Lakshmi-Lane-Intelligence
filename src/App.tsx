@@ -191,23 +191,85 @@ export default function App() {
   };
 
   const downloadDemoData = () => {
-    const csvContent = `origin_city,destination_city,truck_type,shipment_weight,price,timestamp,carrier_name
-Mumbai,Bangalore,32ft,15000,45000,2023-10-01T10:00:00Z,FastTrack Logistics
-Bombay,Bengaluru,32 ft,15000,45000,2023-10-01T10:05:00Z,FastTrack Logistics
-MUMBAI,BANGLORE,32-feet,14500,46000,2023-10-01T11:00:00Z,Speedy Cargo
-Delhi,Mumbai,24ft,10000,35000,2023-10-02T09:00:00Z,NorthStar Movers
-New Delhi,Bombay,24 ft truck,10000,35500,2023-10-02T09:30:00Z,NorthStar Movers
-Chennai,Hyderabad,19ft,8000,25000,2023-10-03T14:00:00Z,South Express
-Chennai,Hyderabad,19ft,8000,25000,2023-10-03T14:00:00Z,South Express
-Kolkata,Delhi,32ft,16000,55000,2023-10-04T08:00:00Z,EastWest Freight
-Kolkata,Delhi,32ft,16000,-5000,2023-10-04T08:00:00Z,Error Carrier
-Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
+    const cities = [
+      ['Mumbai', 'Bombay', 'MUMBAI'],
+      ['Bangalore', 'Bengaluru', 'BANGLORE'],
+      ['Delhi', 'New Delhi', 'DELHI'],
+      ['Chennai', 'Madras', 'CHENNAI'],
+      ['Hyderabad', 'HYDERABAD'],
+      ['Kolkata', 'Calcutta', 'KOLKATA'],
+      ['Pune', 'Poona', 'PUNE'],
+      ['Ahmedabad', 'Ahmadabad', 'AHMEDABAD'],
+      ['Jaipur', 'JAIPUR'],
+      ['Surat', 'SURAT'],
+      ['Lucknow', 'LUCKNOW'],
+      ['Kanpur', 'Cawnpore', 'KANPUR'],
+      ['Nagpur', 'NAGPUR'],
+      ['Indore', 'INDORE'],
+      ['Thane', 'THANE']
+    ];
+
+    const truckTypes = ['32ft', '32 ft', '32-feet', '24ft', '24 ft truck', '19ft', '19 ft', '14ft', '14 ft'];
+    const carriers = ['FastTrack Logistics', 'Speedy Cargo', 'NorthStar Movers', 'South Express', 'EastWest Freight', 'Reliable Trans', 'BlueDart', 'Delhivery', 'Gati', 'VRL Logistics'];
+
+    let csvContent = `origin_city,destination_city,truck_type,shipment_weight,price,timestamp,carrier_name\n`;
+    
+    // Add some specific edge cases and anomalies
+    csvContent += `Mumbai,Bangalore,32ft,15000,45000,2023-10-01T10:00:00Z,FastTrack Logistics\n`;
+    csvContent += `Bombay,Bengaluru,32 ft,15000,45000,2023-10-01T10:05:00Z,FastTrack Logistics\n`;
+    csvContent += `MUMBAI,BANGLORE,32-feet,14500,46000,2023-10-01T11:00:00Z,Speedy Cargo\n`;
+    csvContent += `Delhi,Mumbai,24ft,10000,35000,2023-10-02T09:00:00Z,NorthStar Movers\n`;
+    csvContent += `New Delhi,Bombay,24 ft truck,10000,35500,2023-10-02T09:30:00Z,NorthStar Movers\n`;
+    csvContent += `Chennai,Hyderabad,19ft,8000,25000,2023-10-03T14:00:00Z,South Express\n`;
+    csvContent += `Chennai,Hyderabad,19ft,8000,25000,2023-10-03T14:00:00Z,South Express\n`; // duplicate
+    csvContent += `Kolkata,Delhi,32ft,16000,55000,2023-10-04T08:00:00Z,EastWest Freight\n`;
+    csvContent += `Kolkata,Delhi,32ft,16000,-5000,2023-10-04T08:00:00Z,Error Carrier\n`; // negative price anomaly
+    csvContent += `Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans\n`;
+    csvContent += `Pune,Surat,14ft,5000,1200000,2023-10-05T12:00:00Z,Scam Logistics\n`; // extremely high price anomaly
+
+    // Generate 1000 more random rows
+    for (let i = 0; i < 1000; i++) {
+      const originCityGroup = cities[Math.floor(Math.random() * cities.length)];
+      let destCityGroup = cities[Math.floor(Math.random() * cities.length)];
+      while (destCityGroup === originCityGroup) {
+        destCityGroup = cities[Math.floor(Math.random() * cities.length)];
+      }
+
+      const origin = originCityGroup[Math.floor(Math.random() * originCityGroup.length)];
+      const dest = destCityGroup[Math.floor(Math.random() * destCityGroup.length)];
+      const truck = truckTypes[Math.floor(Math.random() * truckTypes.length)];
+      const carrier = carriers[Math.floor(Math.random() * carriers.length)];
+      
+      // Base price and weight on truck type roughly
+      let weight = 0;
+      let basePrice = 0;
+      if (truck.includes('32')) { weight = 15000 + Math.random() * 2000; basePrice = 40000 + Math.random() * 15000; }
+      else if (truck.includes('24')) { weight = 9000 + Math.random() * 2000; basePrice = 25000 + Math.random() * 10000; }
+      else if (truck.includes('19')) { weight = 7000 + Math.random() * 1500; basePrice = 18000 + Math.random() * 8000; }
+      else { weight = 4000 + Math.random() * 1000; basePrice = 10000 + Math.random() * 5000; }
+
+      // Introduce occasional anomalies (1% chance)
+      let price = basePrice;
+      if (Math.random() < 0.01) {
+        price = basePrice * (Math.random() > 0.5 ? 10 : 0.1); // 10x or 0.1x price
+      }
+
+      // Introduce occasional duplicates (2% chance)
+      const timestamp = new Date(Date.now() - Math.random() * 10000000000).toISOString();
+      
+      const row = `${origin},${dest},${truck},${Math.round(weight)},${Math.round(price)},${timestamp},${carrier}\n`;
+      csvContent += row;
+      
+      if (Math.random() < 0.02) {
+        csvContent += row; // Duplicate
+      }
+    }
     
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'demo_shipments.csv';
+    a.download = 'demo_shipments_large.csv';
     a.click();
   };
 
@@ -348,12 +410,12 @@ Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
           </section>
 
           {/* Anomalies List */}
-          <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-amber-700">
+          <section className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col h-[414px]">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-amber-700 shrink-0">
               <AlertTriangle className="w-5 h-5" />
               Recent Anomalies
             </h2>
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
               {anomalies.length > 0 ? (
                 <div className="space-y-3">
                   {anomalies.map((a, i) => (

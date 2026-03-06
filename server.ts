@@ -52,6 +52,56 @@ db.exec(`
   );
 `);
 
+// Migrations for existing databases
+try {
+  db.prepare("SELECT clean_origin FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN clean_origin TEXT");
+}
+
+try {
+  db.prepare("SELECT clean_destination FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN clean_destination TEXT");
+}
+
+try {
+  db.prepare("SELECT clean_truck_type FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN clean_truck_type TEXT");
+}
+
+try {
+  db.prepare("SELECT is_duplicate FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN is_duplicate BOOLEAN DEFAULT 0");
+}
+
+try {
+  db.prepare("SELECT is_anomaly FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN is_anomaly BOOLEAN DEFAULT 0");
+}
+
+try {
+  db.prepare("SELECT anomaly_reason FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN anomaly_reason TEXT");
+}
+
+try {
+  db.prepare("SELECT lane_id FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN lane_id TEXT");
+}
+
+try {
+  db.prepare("SELECT status FROM shipments LIMIT 1").get();
+} catch (e) {
+  db.exec("ALTER TABLE shipments ADD COLUMN status TEXT DEFAULT 'raw'");
+}
+
+
 // Seed standard cities if empty
 const cityCount = db.prepare("SELECT COUNT(*) as count FROM standard_cities").get() as any;
 if (cityCount.count === 0) {
