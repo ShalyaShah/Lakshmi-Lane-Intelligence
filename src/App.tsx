@@ -1,8 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Upload, Activity, AlertTriangle, CheckCircle, Database, Truck, Map, RefreshCw, Download } from 'lucide-react';
+import { Upload, Activity, AlertTriangle, CheckCircle, Database, Truck, Map, RefreshCw, Download, Settings, X, Lock } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 
 export default function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  
   const [metrics, setMetrics] = useState<any>(null);
   const [lanes, setLanes] = useState<any[]>([]);
   const [anomalies, setAnomalies] = useState<any[]>([]);
@@ -10,6 +14,79 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const [showCityModal, setShowCityModal] = useState(false);
+  const [cities, setCities] = useState<string[]>([]);
+  const [newCity, setNewCity] = useState('');
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (username === 'admin' && password === 'admin') {
+      setIsLoggedIn(true);
+    } else {
+      alert('Invalid credentials. Use admin/admin for demo.');
+    }
+  };
+
+  const fetchCities = async () => {
+    try {
+      const res = await fetch('/api/cities');
+      const data = await res.json();
+      setCities(data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleAddCity = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCity) return;
+    try {
+      await fetch('/api/cities', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ city: newCity })
+      });
+      setNewCity('');
+      fetchCities();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteCity = async (city: string) => {
+    try {
+      await fetch(`/api/cities/${city}`, { method: 'DELETE' });
+      fetchCities();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const res = await fetch('/api/export');
+      const data = await res.json();
+      
+      if (data.length === 0) {
+        alert('No data to export');
+        return;
+      }
+      
+      const headers = Object.keys(data[0]).join(',');
+      const rows = data.map((row: any) => Object.values(row).map(val => `"${val}"`).join(','));
+      const csvContent = [headers, ...rows].join('\n');
+      
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'cleaned_shipments.csv';
+      a.click();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchDashboard = async () => {
     try {
@@ -25,8 +102,56 @@ export default function App() {
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    if (isLoggedIn) {
+      fetchDashboard();
+      fetchCities();
+    }
+  }, [isLoggedIn]);
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-xl shadow-sm border border-slate-200 w-full max-w-md">
+          <div className="flex justify-center mb-6">
+            <div className="bg-indigo-600 p-3 rounded-xl">
+              <Truck className="w-8 h-8 text-white" />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-center text-slate-900 mb-2">Lakshmi Lane Intelligence</h1>
+          <p className="text-center text-slate-500 mb-8">Enterprise Logistics AI Platform</p>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Username</label>
+              <input 
+                type="text" 
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                placeholder="admin"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                placeholder="admin"
+              />
+            </div>
+            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-colors">
+              <Lock className="w-4 h-4" /> Sign In
+            </button>
+          </form>
+          <div className="mt-6 text-center text-xs text-slate-400">
+            Demo Credentials: admin / admin
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -96,6 +221,18 @@ Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
             <h1 className="text-xl font-bold tracking-tight text-slate-900">Lakshmi Lane Intelligence</h1>
           </div>
           <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setShowCityModal(true)}
+              className="text-sm font-medium text-slate-600 hover:text-indigo-600 flex items-center gap-1"
+            >
+              <Settings className="w-4 h-4" /> Dictionaries
+            </button>
+            <button 
+              onClick={handleExport}
+              className="text-sm font-medium text-slate-600 hover:text-emerald-600 flex items-center gap-1"
+            >
+              <Download className="w-4 h-4" /> Export Data
+            </button>
             <button 
               onClick={downloadDemoData}
               className="text-sm font-medium text-slate-600 hover:text-indigo-600 flex items-center gap-1"
@@ -340,6 +477,48 @@ Mumbai,Bangalore,32ft,15000,45500,2023-10-05T10:00:00Z,Reliable Trans`;
             </table>
           </div>
         </section>
+
+        {/* City Dictionary Modal */}
+        {showCityModal && (
+          <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-lg w-full max-w-md overflow-hidden flex flex-col max-h-[80vh]">
+              <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+                <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <Database className="w-4 h-4" /> Standard Cities Dictionary
+                </h2>
+                <button onClick={() => setShowCityModal(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 border-b border-slate-200">
+                <form onSubmit={handleAddCity} className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newCity}
+                    onChange={(e) => setNewCity(e.target.value)}
+                    placeholder="Add new standard city..."
+                    className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-sm outline-none focus:border-indigo-500"
+                  />
+                  <button type="submit" className="bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-indigo-700">
+                    Add
+                  </button>
+                </form>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                <div className="grid grid-cols-2 gap-2">
+                  {cities.map(city => (
+                    <div key={city} className="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-2 rounded-lg text-sm">
+                      <span className="font-medium text-slate-700 truncate">{city}</span>
+                      <button onClick={() => handleDeleteCity(city)} className="text-slate-400 hover:text-red-500 ml-2">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
       </main>
     </div>

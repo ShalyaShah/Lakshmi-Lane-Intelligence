@@ -1,8 +1,11 @@
-export function detectAnomaly(shipment: any, laneStats?: { mean: number, stdDev: number }) {
+export function detectAnomaly(shipment: any, laneStats?: { mean: number, stdDev: number }, cleanOrigin?: string, cleanDest?: string) {
   let isAnomaly = 0;
   let reason = '';
   
-  if (shipment.raw_price <= 0) {
+  if (cleanOrigin && cleanDest && cleanOrigin === cleanDest) {
+    isAnomaly = 1;
+    reason = 'Invalid Route: Origin == Destination';
+  } else if (shipment.raw_price <= 0) {
     isAnomaly = 1;
     reason = 'Price <= 0';
   } else if (shipment.raw_weight <= 0) {

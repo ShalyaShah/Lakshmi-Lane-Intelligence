@@ -1,15 +1,11 @@
 import { GoogleGenAI } from '@google/genai';
 import * as fuzzball from 'fuzzball';
 
-const STANDARD_CITIES = [
-  "MUMBAI", "BANGALORE", "DELHI", "CHENNAI", "KOLKATA", 
-  "HYDERABAD", "PUNE", "AHMEDABAD", "JAIPUR", "SURAT",
-  "LUCKNOW", "KANPUR", "NAGPUR", "INDORE", "THANE"
-];
-
-export async function normalizeData(uniqueCities: Set<string>, uniqueTrucks: Set<string>) {
+export async function normalizeData(db: any, uniqueCities: Set<string>, uniqueTrucks: Set<string>) {
   const cityList = Array.from(uniqueCities).join(', ');
   const truckList = Array.from(uniqueTrucks).join(', ');
+
+  const standardCities = db.prepare("SELECT city_name FROM standard_cities").all().map((c: any) => c.city_name);
 
   let cityMap: Record<string, string> = {};
   let truckMap: Record<string, string> = {};
@@ -44,11 +40,11 @@ export async function normalizeData(uniqueCities: Set<string>, uniqueTrucks: Set
       // Apply fuzzy matching for any cities that Gemini missed or didn't normalize well
       Array.from(uniqueCities).forEach(c => {
         if (!cityMap[c]) {
-          cityMap[c] = fuzzyMatchCity(c);
+          cityMap[c] = fuzzyMatchCity(c, standardCities);
         } else {
           // Ensure the Gemini output is also standardized against our known list if possible
           const cleanName = cityMap[c].toUpperCase();
-          const match = fuzzball.extract(cleanName, STANDARD_CITIES, { scorer: fuzzball.ratio, limit: 1 })[0];
+          const match = fuzzball.extract(cleanName, standardCities, { scorer: fuzzball.ratio, limit: 1 })[0];
           if (match && match[1] > 85) {
             cityMap[c] = match[0];
           }
@@ -63,16 +59,16 @@ export async function normalizeData(uniqueCities: Set<string>, uniqueTrucks: Set
       
     } catch (e) {
       console.error("Gemini API error, falling back to basic normalization", e);
-      fallbackNormalization(uniqueCities, uniqueTrucks, cityMap, truckMap);
+      fallbackNormalization(uniqueCities, uniqueTrucks, cityMap, truckMap, standardCities);
     }
   } else {
-    fallbackNormalization(uniqueCities, uniqueTrucks, cityMap, truckMap);
+    fallbackNormalization(uniqueCities, uniqueTrucks, cityMap, truckMap, standardCities);
   }
 
   return { cityMap, truckMap };
 }
 
-function fuzzyMatchCity(rawCity: string): string {
+function fuzzyMatchCity(rawCity: string, standardCities: string[]): string {
   const normalized = rawCity.trim().toUpperCase();
   
   // Handle common aliases before fuzzy matching
@@ -81,7 +77,7 @@ function fuzzyMatchCity(rawCity: string): string {
   if (normalized === 'CALCUTTA') return 'KOLKATA';
   if (normalized === 'GURGAON') return 'GURUGRAM';
   
-  const match = fuzzball.extract(normalized, STANDARD_CITIES, { scorer: fuzzball.ratio, limit: 1 })[0];
+  const match = fuzzball.extract(normalized, standardCities, { scorer: fuzzball.ratio, limit: 1 })[0];
   
   // If similarity score is > 75, consider it a match
   if (match && match[1] > 75) {
@@ -91,9 +87,9 @@ function fuzzyMatchCity(rawCity: string): string {
   return normalized;
 }
 
-function fallbackNormalization(uniqueCities: Set<string>, uniqueTrucks: Set<string>, cityMap: Record<string, string>, truckMap: Record<string, string>) {
+function fallbackNormalization(uniqueCities: Set<string>, uniqueTrucks: Set<string>, cityMap: Record<string, string>, truckMap: Record<string, string>, standardCities: string[]) {
   Array.from(uniqueCities).forEach(c => {
-    cityMap[c] = fuzzyMatchCity(c);
+    cityMap[c] = fuzzyMatchCity(c, standardCities);
   });
   Array.from(uniqueTrucks).forEach(t => truckMap[t] = t.trim().toUpperCase().replace(/\s+/g, ''));
 }

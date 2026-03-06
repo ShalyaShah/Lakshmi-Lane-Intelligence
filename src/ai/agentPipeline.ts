@@ -31,7 +31,7 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
     if (s.raw_truck_type) uniqueTrucks.add(s.raw_truck_type);
   });
 
-  const { cityMap, truckMap } = await normalizeData(uniqueCities, uniqueTrucks);
+  const { cityMap, truckMap } = await normalizeData(db, uniqueCities, uniqueTrucks);
 
   // Agent 3, 4, 5: Deduplication, Lane Builder, Anomaly Detection
   const updateStmt = db.prepare(`
@@ -76,7 +76,7 @@ export async function runAgentPipeline(db: any, rawShipments: any[]) {
         laneStats = { mean, stdDev };
       }
 
-      const { isAnomaly, reason } = detectAnomaly(s, laneStats);
+      const { isAnomaly, reason } = detectAnomaly(s, laneStats, cleanOrigin, cleanDest);
       if (isAnomaly) {
         anomaliesDetected++;
       } else if (!isDuplicate) {

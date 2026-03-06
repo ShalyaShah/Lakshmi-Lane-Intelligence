@@ -45,7 +45,27 @@ db.exec(`
     normalization_accuracy REAL DEFAULT 0,
     processing_time_ms INTEGER DEFAULT 0
   );
+
+  CREATE TABLE IF NOT EXISTS standard_cities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    city_name TEXT UNIQUE
+  );
 `);
+
+// Seed standard cities if empty
+const cityCount = db.prepare("SELECT COUNT(*) as count FROM standard_cities").get() as any;
+if (cityCount.count === 0) {
+  const insertCity = db.prepare("INSERT INTO standard_cities (city_name) VALUES (?)");
+  const initialCities = [
+    "MUMBAI", "BANGALORE", "DELHI", "CHENNAI", "KOLKATA", 
+    "HYDERABAD", "PUNE", "AHMEDABAD", "JAIPUR", "SURAT",
+    "LUCKNOW", "KANPUR", "NAGPUR", "INDORE", "THANE"
+  ];
+  const insertManyCities = db.transaction((cities: string[]) => {
+    for (const c of cities) insertCity.run(c);
+  });
+  insertManyCities(initialCities);
+}
 
 // Setup multer for file uploads
 const upload = multer({ dest: 'uploads/' });
@@ -122,6 +142,45 @@ app.get('/api/dashboard', (req, res) => {
     `).all();
 
     res.json({ metrics, lanes, anomalies, recentShipments });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/cities', (req, res) => {
+  try {
+    const cities = db.prepare("SELECT city_name FROM standard_cities ORDER BY city_name ASC").all();
+    res.json(cities.map((c: any) => c.city_name));
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/cities', (req, res) => {
+  try {
+    const { city } = req.body;
+    if (!city) return res.status(400).json({ error: 'City name required' });
+    db.prepare("INSERT INTO standard_cities (city_name) VALUES (?)").run(city.trim().toUpperCase());
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(400).json({ error: 'City might already exist or invalid input' });
+  }
+});
+
+app.delete('/api/cities/:city', (req, res) => {
+  try {
+    const city = req.params.city;
+    db.prepare("DELETE FROM standard_cities WHERE city_name = ?").run(city.toUpperCase());
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/export', (req, res) => {
+  try {
+    const shipments = db.prepare("SELECT * FROM shipments WHERE status = 'processed'").all();
+    res.json(shipments);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
