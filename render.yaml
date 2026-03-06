@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: lakshmi-lane-intelligence
+    env: docker
+    plan: starter
+    region: oregon
+    disk:
+      name: sqlite-data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: DB_PATH
+        value: /data/logistics.db
+      - key: PORT
+        value: 3000
+      - key: GEMINI_API_KEY
+        sync: false # You will need to add this manually in the Render dashboard

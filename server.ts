@@ -4,17 +4,19 @@ import multer from 'multer';
 import csv from 'csv-parser';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import Database from 'better-sqlite3';
 import { runAgentPipeline } from './src/ai/agentPipeline';
 import { optimizeLanes } from './src/ai/optimization';
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 app.use(express.json());
 
 // Setup SQLite database
-const db = new Database('logistics.db');
+const dbPath = process.env.DB_PATH || 'logistics.db';
+const db = new Database(dbPath);
 
 // Initialize schema
 db.exec(`
@@ -118,7 +120,11 @@ if (cityCount.count === 0) {
 }
 
 // Setup multer for file uploads
-const upload = multer({ dest: 'uploads/' });
+const uploadDir = path.join(os.tmpdir(), 'uploads');
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+const upload = multer({ dest: uploadDir });
 
 // API Routes
 app.post('/api/upload', upload.single('file'), (req, res) => {
